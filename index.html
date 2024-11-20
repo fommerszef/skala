@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skalowanie Obrazów</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #121212;
+            color: #FFFFFF;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        #drop-zone {
+            border: 2px dashed #03DAC6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+            cursor: pointer;
+            width: 80%;
+            max-width: 600px;
+        }
+        #drop-zone.dragover {
+            background-color: #232323;
+            border-color: #BB86FC;
+        }
+        #resize-all-container {
+            margin-top: 20px;
+        }
+        #resize-all-container input {
+            width: 70px;
+            padding: 5px;
+            margin-right: 10px;
+            border: 1px solid #03DAC6;
+            border-radius: 5px;
+            background-color: #232323;
+            color: #FFFFFF;
+            text-align: center;
+        }
+        .image-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .image-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1E1E1E;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        canvas {
+            border: 1px solid #03DAC6;
+            border-radius: 5px;
+            width: 150px;
+            height: 150px;
+            object-fit: contain;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #BB86FC;
+            color: #FFFFFF;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #3700B3;
+            transform: scale(1.05);
+        }
+        button:disabled {
+            background-color: #757575;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Skalowanie Obrazów</h1>
+    <div id="drop-zone">Przeciągnij i upuść pliki tutaj lub kliknij, aby wybrać</div>
+    <input type="file" id="upload" accept="image/*" multiple style="display: none;">
+    <div id="resize-all-container">
+		<label for="resize-all">Wymiary:</label>
+        <input type="number" id="resize-all" value="800" placeholder="Szerokość w px">
+        <button id="download-all" disabled>Pobierz Wszystko</button>
+        <button id="clear-all" disabled>Wyczyść Obrazy</button>
+    </div>
+    <div class="image-container" id="image-container"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const uploadInput = document.getElementById('upload');
+        const container = document.getElementById('image-container');
+        const resizeAllInput = document.getElementById('resize-all');
+        const downloadAllButton = document.getElementById('download-all');
+        const clearAllButton = document.getElementById('clear-all');
+
+        let imageItems = []; // Przechowuje informacje o obrazach
+
+        // Obsługa kliknięcia na strefę
+        dropZone.addEventListener('click', () => uploadInput.click());
+
+        // Obsługa przeciągania plików
+        dropZone.addEventListener('dragover', (event) => {
+            event.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (event) => {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(event.dataTransfer.files);
+        });
+
+        // Obsługa wyboru plików
+        uploadInput.addEventListener('change', (event) => {
+            handleFiles(event.target.files);
+        });
+
+        async function handleFiles(files) {
+            const fileArray = Array.from(files);
+
+            for (const file of fileArray) {
+                if (!file.type.startsWith('image/')) continue; // Obsługuj tylko obrazy
+
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
+                await img.decode(); // Czekaj na załadowanie obrazu
+
+                const originalCanvas = document.createElement('canvas');
+                const scaledCanvas = document.createElement('canvas');
+                const originalCtx = originalCanvas.getContext('2d');
+                const scaledCtx = scaledCanvas.getContext('2d');
+
+                originalCanvas.width = img.width;
+                originalCanvas.height = img.height;
+                originalCtx.drawImage(img, 0, 0);
+
+                const scale = 800 / img.width; // Domyślnie skaluj do 800px
+                scaledCanvas.width = img.width * scale;
+                scaledCanvas.height = img.height * scale;
+                scaledCtx.imageSmoothingEnabled = false; // Twarde krawędzie
+                scaledCtx.drawImage(img, 0, 0, scaledCanvas.width, scaledCanvas.height);
+
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+
+                const downloadButton = document.createElement('button');
+                downloadButton.textContent = 'Pobierz';
+                downloadButton.addEventListener('click', () => {
+                    const link = document.createElement('a');
+                    link.download = `${file.name.split('.')[0]}_scaled.png`;
+                    link.href = scaledCanvas.toDataURL('image/png');
+                    link.click();
+                });
+
+                imageItem.appendChild(scaledCanvas);
+                imageItem.appendChild(downloadButton);
+                container.appendChild(imageItem);
+
+                // Przechowaj informacje o obrazie
+                imageItems.push({
+                    file,
+                    img,
+                    originalCanvas,
+                    scaledCanvas,
+                    scaledCtx
+                });
+            }
+
+            downloadAllButton.disabled = false; // Włącz przycisk "Pobierz Wszystko"
+            clearAllButton.disabled = false; // Włącz przycisk "Wyczyść Obrazy"
+        }
+
+        // Obsługa zmiany rozmiaru wszystkich obrazów
+        resizeAllInput.addEventListener('input', () => {
+            const newWidth = parseInt(resizeAllInput.value, 10);
+
+            if (newWidth > 0) {
+                imageItems.forEach(({ img, scaledCanvas, scaledCtx }) => {
+                    const scale = newWidth / img.width;
+                    scaledCanvas.width = img.width * scale;
+                    scaledCanvas.height = img.height * scale;
+                    scaledCtx.imageSmoothingEnabled = false;
+                    scaledCtx.drawImage(img, 0, 0, scaledCanvas.width, scaledCanvas.height);
+                });
+            }
+        });
+
+        // Pobierz wszystkie obrazy
+        downloadAllButton.addEventListener('click', () => {
+            imageItems.forEach(({ scaledCanvas, file }, index) => {
+                const link = document.createElement('a');
+                link.download = `${file.name.split('.')[0]}_scaled_${index + 1}.png`;
+                link.href = scaledCanvas.toDataURL('image/png');
+                link.click();
+            });
+        });
+
+        // Wyczyść wszystkie obrazy
+        clearAllButton.addEventListener('click', () => {
+            imageItems = [];
+            container.innerHTML = '';
+            downloadAllButton.disabled = true;
+            clearAllButton.disabled = true;
+        });
+    </script>
+</body>
+</html>
